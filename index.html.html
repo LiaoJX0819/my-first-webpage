@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>邮路运行异常筛查系统（单机版）</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+    body { background-color: #f3f4f6; font-family: "Microsoft YaHei", sans-serif; }
+    .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
+    .hidden { display: none; }
+    .editable-cell { cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+    .editable-cell:hover { background-color: #e5e7eb; }
+    .red-text { color: #dc2626; font-weight: 600; }
+</style>
+</head>
+
+<body class="min-h-screen">
+
+<header class="bg-blue-600 text-white p-4 shadow-md">
+    <h1 class="text-xl font-bold">邮路运行异常筛查系统（单机版）</h1>
+</header>
+
+<nav class="bg-white border-b px-4">
+    <div class="flex space-x-8">
+        <button onclick="switchTab('upload')" class="py-4 px-2 tab-active">基础数据上传</button>
+        <button onclick="switchTab('maintain')" class="py-4 px-2">基础数据维护</button>
+        <button onclick="switchTab('check')" class="py-4 px-2">异常筛查</button>
+    </div>
+</nav>
+
+<main class="container mx-auto p-4">
+
+<!-- 基础数据上传 -->
+<div id="module-upload">
+    <div class="bg-white p-6 rounded-lg shadow mb-6">
+        <h2 class="text-lg font-semibold mb-4">基础数据上传</h2>
+
+        <div class="flex items-center gap-4 mb-4 flex-wrap">
+            <label>邮路类型：</label>
+            <select id="routeType" class="border rounded px-2 py-1">
+                <option value="一干">一干</option>
+                <option value="二干">二干</option>
+            </select>
+
+            <input type="file" id="excelFile" accept=".xls,.xlsx" class="hidden">
+            <button onclick="document.getElementById('excelFile').click()" class="bg-gray-200 px-4 py-2 rounded">选择文件</button>
+            <span id="fileName" class="text-gray-600">未选择文件</span>
+            <button id="uploadBtn" class="bg-blue-600 text-white px-4 py-2 rounded" disabled>上传</button>
+            <button onclick="clearAllData()" class="bg-red-600 text-white px-4 py-2 rounded">清空所有数据</button>
+        </div>
+
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">上传时间</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">邮路类型</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">文件名</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                </tr>
+            </thead>
+            <tbody id="uploadTbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 基础数据维护 -->
+<div id="module-maintain" class="hidden">
+    <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-lg font-semibold mb-4">基础数据维护</h2>
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">序号</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">邮路名称</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">计划运行时长</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">标准里程(KM)</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">计划发班时间</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">最后更新时间</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                </tr>
+            </thead>
+            <tbody id="maintainTbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 异常筛查 -->
+<div id="module-check" class="hidden">
+    <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-lg font-semibold mb-4">已完成邮路信息异常筛查</h2>
+        <div class="flex gap-4 mb-6">
+            <button onclick="runAnomalyCheck()" class="bg-blue-600 text-white px-4 py-2 rounded">开始筛查</button>
+            <button onclick="exportAnomalies()" class="bg-green-600 text-white px-4 py-2 rounded">导出异常结果</button>
+        </div>
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">异常类型</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">车牌号</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">车厢车牌号</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">驾驶员</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">任务1</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">任务2</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">间隔时间</th>
+                </tr>
+            </thead>
+            <tbody id="checkTbody"></tbody>
+        </table>
+    </div>
+</div>
+
+</main>
+
+<script>
+let uploadLog = JSON.parse(localStorage.getItem('uploadLog')) || [];
+let taskData = JSON.parse(localStorage.getItem('taskData')) || [];
+let routeMasterData = [];
+let lastAnomalies = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+    renderUploadLog();
+    syncMaintainData();
+    renderMaintainTable();
+
+    document.getElementById('excelFile').addEventListener('change', e => {
+        document.getElementById('fileName').textContent = e.target.files[0]?.name || '未选择文件';
+        document.getElementById('uploadBtn').disabled = !e.target.files[0];
+    });
+
+    document.getElementById('uploadBtn').addEventListener('click', handleUpload);
+});
+
+function switchTab(tabName) {
+    document.querySelectorAll('main > div').forEach(d => d.classList.add('hidden'));
+    document.getElementById(`module-${tabName}`).classList.remove('hidden');
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('tab-active'));
+    event.target.classList.add('tab-active');
+    if (tabName === 'maintain') { syncMaintainData(); renderMaintainTable(); }
+}
+
+function handleUpload() {
+    const file = document.getElementById('excelFile').files[0];
+    const routeType = document.getElementById('routeType').value;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        jsonData.forEach(r => {
+            r.__file = file.name;
+            r.__routeType = routeType;
+        });
+        taskData = taskData.concat(jsonData);
+        uploadLog.push({ time: new Date().toLocaleString(), name: file.name, routeType });
+        localStorage.setItem('uploadLog', JSON.stringify(uploadLog));
+        localStorage.setItem('taskData', JSON.stringify(taskData));
+        renderUploadLog();
+        syncMaintainData();
+        renderMaintainTable();
+        alert(`上传成功！共 ${jsonData.length} 条记录。`);
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function renderUploadLog() {
+    document.getElementById('uploadTbody').innerHTML = uploadLog.map((log, index) => `
+        <tr>
+            <td class="px-6 py-4">${log.time}</td>
+            <td class="px-6 py-4">${log.routeType}</td>
+            <td class="px-6 py-4">${log.name}</td>
+            <td class="px-6 py-4"><button onclick="deleteUpload(${index})" class="text-red-600 hover:underline">删除</button></td>
+        </tr>
+    `).join('');
+}
+
+function deleteUpload(index) {
+    if (!confirm('确定要删除该上传文件及其关联数据吗？')) return;
+    const fileName = uploadLog[index].name;
+    uploadLog.splice(index, 1);
+    taskData = taskData.filter(r => r.__file !== fileName);
+    localStorage.setItem('uploadLog', JSON.stringify(uploadLog));
+    localStorage.setItem('taskData', JSON.stringify(taskData));
+    syncMaintainData();
+    renderUploadLog();
+    renderMaintainTable();
+    lastAnomalies = [];
+    document.getElementById('checkTbody').innerHTML = '';
+    alert('删除成功！');
+}
+
+function clearAllData() {
+    if (!confirm('确定要清空所有数据吗？此操作不可恢复！')) return;
+    uploadLog = [];
+    taskData = [];
+    lastAnomalies = [];
+    localStorage.clear();
+    syncMaintainData();
+    renderUploadLog();
+    renderMaintainTable();
+    document.getElementById('checkTbody').innerHTML = '';
+    alert('已全部清空！');
+}
+
+function syncMaintainData() {
+    if (taskData.length === 0) { routeMasterData = []; return; }
+    const groups = {};
+    taskData.forEach(item => {
+        if (!groups[item.邮路名称]) groups[item.邮路名称] = [];
+        groups[item.邮路名称].push(item);
+    });
+    routeMasterData = Object.values(groups).map(g => {
+        const latest = g[g.length - 1];
+        return {
+            邮路名称: latest.邮路名称,
+            计划运行时长: latest.计划运行时长,
+            标准里程: latest.标准里程,
+            计划发班时间: formatTime(latest.计划发车),
+            最后更新时间: new Date().toLocaleString()
+        };
+    });
+}
+
+function renderMaintainTable() {
+    document.getElementById('maintainTbody').innerHTML = routeMasterData.map((item, index) => `
+        <tr>
+            <td class="px-6 py-4">${index + 1}</td>
+            <td class="editable-cell" data-index="${index}" data-field="邮路名称">${item.邮路名称}</td>
+            <td class="editable-cell" data-index="${index}" data-field="计划运行时长">${item.计划运行时长}</td>
+            <td class="editable-cell" data-index="${index}" data-field="标准里程">${item.标准里程}</td>
+            <td class="editable-cell" data-index="${index}" data-field="计划发班时间">${item.计划发班时间}</td>
+            <td class="px-6 py-4">${item.最后更新时间}</td>
+            <td class="px-6 py-4"><button onclick="saveRow(${index})" class="bg-blue-500 text-white px-3 py-1 rounded text-xs">保存</button></td>
+        </tr>
+    `).join('');
+
+    document.querySelectorAll('#maintainTbody .editable-cell').forEach(cell => {
+        cell.addEventListener('click', function () {
+            const input = document.createElement('input');
+            input.value = this.textContent;
+            input.className = 'w-full p-1 border rounded';
+            this.innerHTML = '';
+            this.appendChild(input);
+            input.focus();
+            input.onblur = () => {
+                routeMasterData[this.dataset.index][this.dataset.field] = input.value;
+                this.textContent = input.value;
+            };
+        });
+    });
+}
+
+function saveRow(index) {
+    routeMasterData[index].最后更新时间 = new Date().toLocaleString();
+    alert(`第 ${index + 1} 行保存成功！`);
+    renderMaintainTable();
+}
+
+/* ===============================
+   ✅ 核心异常筛查逻辑（已优化）
+   =============================== */
+function runAnomalyCheck() {
+    if (taskData.length === 0) { alert('请先上传数据！'); return; }
+    document.getElementById('checkTbody').innerHTML = `<tr><td colspan="7" class="text-center py-8 text-gray-500">正在分析中...</td></tr>`;
+
+    setTimeout(() => {
+        const anomalies = [];
+        const map = {};
+
+        taskData.forEach(task => {
+            const keys = new Set();
+            if (task.车牌号) keys.add(task.车牌号);
+            if (task.车厢车牌号 && task.车厢车牌号 !== '--') keys.add(task.车厢车牌号);
+            if (task.驾驶员姓名) keys.add(task.驾驶员姓名);
+            keys.forEach(k => { if (!map[k]) map[k] = []; map[k].push(task); });
+        });
+
+        Object.values(map).forEach(group => {
+            const tasks = Array.from(new Map(group.map(t => [JSON.stringify(t), t])).values())
+                .sort((a, b) => new Date(a.封车时间) - new Date(b.封车时间));
+
+            for (let i = 0; i < tasks.length - 1; i++) {
+                const t1 = tasks[i], t2 = tasks[i + 1];
+                const end1 = new Date(t1.解车时间), start2 = new Date(t2.封车时间);
+                if (isNaN(end1) || isNaN(start2)) continue;
+
+                const interval = (start2 - end1) / 36e5;
+
+                /* ✅ 关键逻辑：三项全同 → 数据重复 → 不去判异常 */
+                const isExactSameResource =
+                    t1.车牌号 === t2.车牌号 &&
+                    t1.车厢车牌号 === t2.车厢车牌号 &&
+                    t1.驾驶员姓名 === t2.驾驶员姓名;
+
+                if (isExactSameResource) continue;
+
+                const conflictFields = new Set();
+                if (t1.车牌号 === t2.车牌号) conflictFields.add('plate');
+                if (t1.车厢车牌号 === t2.车厢车牌号 && t1.车厢车牌号 !== '--') conflictFields.add('trailer');
+                if (t1.驾驶员姓名 === t2.驾驶员姓名) conflictFields.add('driver');
+
+                if (end1 > start2) {
+                    anomalies.push(createAnomaly('同时执行任务', t1, t2, interval, conflictFields));
+                } else if (interval < 2) {
+                    anomalies.push(createAnomaly('连续任务间隔不足2小时', t1, t2, interval, conflictFields));
+                } else {
+                    const limit = t1.__routeType === '二干' ? 3 : 8;
+                    if (t1.终到局 !== t2.始发局 && interval < limit) {
+                        anomalies.push(createAnomaly(`异地间隔不足${limit}小时`, t1, t2, interval, conflictFields));
+                    }
+                }
+            }
+        });
+
+        lastAnomalies = anomalies;
+        renderCheckResults(anomalies);
+    }, 500);
+}
+
+function createAnomaly(type, t1, t2, interval, conflictFields) {
+    return {
+        type,
+        plate: t1.车牌号,
+        trailer: t1.车厢车牌号 || '--',
+        driver: t1.驾驶员姓名,
+        task1: `派车单号：${t1.派车单号 || '-'}\n${t1.邮路名称}\n${t1.封车时间}~${t1.解车时间}`,
+        task2: `派车单号：${t2.派车单号 || '-'}\n${t2.邮路名称}\n${t2.封车时间}~${t2.解车时间}`,
+        interval: interval.toFixed(2) + 'h',
+        conflictFields
+    };
+}
+
+function renderCheckResults(list) {
+    const tbody = document.getElementById('checkTbody');
+    if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-gray-500">未检测到异常</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = list.map(a => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 font-medium text-red-600">${a.type}</td>
+            <td class="px-6 py-4">${a.conflictFields.has('plate') ? `<span class="red-text">${a.plate}</span>` : a.plate}</td>
+            <td class="px-6 py-4">${a.conflictFields.has('trailer') ? `<span class="red-text">${a.trailer}</span>` : a.trailer}</td>
+            <td class="px-6 py-4">${a.conflictFields.has('driver') ? `<span class="red-text">${a.driver}</span>` : a.driver}</td>
+            <td class="px-6 py-4 text-sm whitespace-pre-wrap">${a.task1}</td>
+            <td class="px-6 py-4 text-sm whitespace-pre-wrap">${a.task2}</td>
+            <td class="px-6 py-4">${a.interval}</td>
+        </tr>
+    `).join('');
+}
+
+function exportAnomalies() {
+    if (!lastAnomalies.length) { alert('暂无异常数据可导出'); return; }
+    const ws = XLSX.utils.json_to_sheet(lastAnomalies.map(a => ({
+        异常类型: a.type, 车牌号: a.plate, 车厢车牌号: a.trailer,
+        驾驶员: a.driver, 任务1: a.task1, 任务2: a.task2, 间隔时间: a.interval
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '异常筛查结果');
+    XLSX.writeFile(wb, '邮路异常筛查结果.xlsx');
+}
+
+function formatTime(timeStr) {
+    if (!timeStr) return '-';
+    if (typeof timeStr === 'string' && timeStr.includes(' ')) return timeStr.split(' ')[1].substring(0, 8);
+    return timeStr;
+}
+</script>
+
+</body>
+</html>
